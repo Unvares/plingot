@@ -4,42 +4,50 @@ import './App.scss';
 
 const App = () => {
   const [token, setToken] = useState('');
-  const [gameState, setGameState] = useState(false);
-  const [directions, setDirections] = useState([]);
-
-  const buttonClasses = cn({
-    controls__button: true,
-    controls__button_disabled: gameState,
-  });
-  const headers = { Authorization: token };
+  const [gameInitialized, setGameInitialized] = useState(false);
+  const [gameLoading, setGameLoading] = useState(false);
+  const [availableDirections, setAvailableDirections] = useState([]);
 
   useEffect(() => {
     if (token === '') return;
-    updateDirections();
+    updateAvailableDirections();
   }, [token]);
 
-  const updateDirections = () => {
+  const buttonClasses = cn({
+    controls__button: true,
+    controls__button_disabled: gameInitialized,
+  });
+  const headers = { Authorization: token };
+
+  const updateAvailableDirections = () => {
     fetch('https://mazegame.plingot.com/Room/current', {
       headers,
       method: 'get',
     })
       .then((response) => response.json())
-      .then((data) => data.paths.map(({ direction }) => direction))
-      .then((directions) => setDirections(directions))
+      .then(({ paths }) => {
+        const directions = paths.map(({ direction }) => direction);
+        setAvailableDirections(directions);
+        setGameLoading(false);
+      })
       .catch((error) => console.log(error));
   };
 
-  const disableStartButton = () => setGameState(true);
+  const getToken = () =>
+    fetch('https://mazegame.plingot.com/Game/Start', { method: 'post' });
 
-  const getToken = () => {
-    disableStartButton();
+  const handleStartButtonClick = () => {
+    setGameInitialized(true);
+    setGameLoading(true);
 
-    fetch('https://mazegame.plingot.com/Game/Start', { method: 'post' })
+    getToken()
       .then((response) => response.json())
       .then((data) => setToken(data.token));
   };
 
   const goThisWay = ({ currentTarget }) => {
+    setGameLoading(true);
+    
     const {
       dataset: { direction },
     } = currentTarget;
@@ -48,7 +56,7 @@ const App = () => {
       headers,
       method: 'put',
     })
-      .then(() => updateDirections())
+      .then(() => updateAvailableDirections())
       .catch((error) => console.log(error));
   };
 
@@ -56,7 +64,7 @@ const App = () => {
     <div className='controls'>
       <h1 className='controls__header'>Escape the maze!</h1>
       {['North', 'East', 'South', 'West'].map((direction) => {
-        const canGo = directions.includes(direction) || null;
+        const canGo = availableDirections.includes(direction) || null;
         const commonClass = { controls__arrow_disabled: !canGo };
 
         return (
@@ -73,11 +81,11 @@ const App = () => {
           </div>
         );
       })}
-      {token === '' && (
-        <button className={buttonClasses} onClick={getToken}>
-          {gameState ? 'Loading...' : 'Start!'}
-        </button>
-      )}
+
+      <button className={buttonClasses} onClick={handleStartButtonClick}>
+        {gameInitialized ? '' : 'Start!'}
+        {gameLoading ? 'Loading...' : ''}
+      </button>
     </div>
   );
 };
